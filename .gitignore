@@ -1,0 +1,67 @@
+# --- Python bytecode / caches ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Virtual environments ---
+.venv/
+venv/
+ENV/
+env/
+
+# --- Build / packaging ---
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# --- Test / coverage ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# --- Type check / lint caches ---
+.mypy_cache/
+.ruff_cache/
+
+# --- Jupyter / IPython ---
+.ipynb_checkpoints/
+
+# --- IDEs / editors ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# --- OS / WSL noise ---
+Thumbs.db
+
+# --- Secrets / env files ---
+.env
+.env.*
+*.key
+*.pem
+*.pfx
+
+# --- App data (PGO) ---
+# Local DB / state
+*.db
+*.sqlite
+*.sqlite3
+
+# Evidence vault (never commit real evidence)
+vault/
+evidence/
+*.enc
+
+# Generated reports / exports (keep folder, ignore content)
+reports/*
+!reports/.gitkeep
+
+# Logs
+*.log
+logs/
