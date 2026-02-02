@@ -2,40 +2,65 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyo
+
+# --- Python tooling / caches ---
+.cache/
+pip-log.txt
+pip-delete-this-directory.txt
+pip-wheel-metadata/
+__pypackages__/
+.Python
 
 # --- Virtual environments ---
 .venv/
 venv/
 ENV/
 env/
+env.bak/
+venv.bak/
+.direnv/
+.envrc
 
 # --- Build / packaging ---
 build/
 dist/
 *.egg-info/
 .eggs/
-pip-wheel-metadata/
+*.egg
+*.whl
+*.tar.gz
+*.zip
+.pdm-build/
 
 # --- Test / coverage ---
 .pytest_cache/
 .coverage
 .coverage.*
+coverage.xml
+junit.xml
 htmlcov/
 .tox/
 .nox/
+.hypothesis/
 
 # --- Type check / lint caches ---
 .mypy_cache/
 .ruff_cache/
+.pytype/
+.pyre/
 
 # --- Jupyter / IPython ---
 .ipynb_checkpoints/
+.ipython/
+profile_default/
 
 # --- IDEs / editors ---
 .vscode/
 .idea/
 *.swp
 .DS_Store
+.editorconfig
 
 # --- OS / WSL noise ---
 Thumbs.db
@@ -43,25 +68,42 @@ Thumbs.db
 # --- Secrets / env files ---
 .env
 .env.*
+*.env
+*.secrets
 *.key
 *.pem
 *.pfx
+*.crt
 
 # --- App data (PGO) ---
 # Local DB / state
 *.db
 *.sqlite
 *.sqlite3
+*.sqlite-journal
+*.db-journal
+*.db-wal
 
 # Evidence vault (never commit real evidence)
 vault/
 evidence/
 *.enc
 
+# Data (keep folder, ignore content)
+data/*
+!data/.gitkeep
+sample_data/*
+!sample_data/.gitkeep
+
 # Generated reports / exports (keep folder, ignore content)
 reports/*
 !reports/.gitkeep
+exports/*
+!exports/.gitkeep
+manifests/*
+!manifests/.gitkeep
 
 # Logs
 *.log
 logs/
+*.log.*
