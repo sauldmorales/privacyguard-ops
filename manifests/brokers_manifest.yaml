@@ -1,0 +1,16 @@
+version: 1
+brokers:
+  - id: example-broker
+    name: Example Broker
+    domain: example.com
+    status: draft
+    notes: "Placeholder manifest entry. Replace with real broker data."
+    workflow:
+      - step: locate_profile
+        description: "Find the public profile page (BYOS)."
+      - step: confirm_identity
+        description: "Confirm the profile belongs to you (BYOS)."
+      - step: opt_out_submit
+        description: "Submit opt-out request (BYOS)."
+      - step: verify_absence
+        description: "Re-check for resurfacing over time."

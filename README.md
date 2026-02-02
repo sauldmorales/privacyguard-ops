@@ -167,6 +167,16 @@ PGO uses an append-only event log design:
 * No clear-text PII should be stored in exports/logs
 * Evidence is stored encrypted in the vault; exports contain hashes/timestamps only
 
+## Local state location
+
+Local runtime data and evidence are kept outside Git (e.g., `vault/`, `data/`, `reports/`, `exports/`). This keeps sensitive or generated artifacts from leaking into version control.
+
+## Security posture (short)
+
+* Local-first by default; no background data exfiltration.
+* No credentials stored or auto-submitted (BYOS only).
+* Clear separation between code, local state, and generated outputs.
+
 ---
 
 ## Tests

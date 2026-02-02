@@ -37,6 +37,7 @@ dist/
 .pytest_cache/
 .coverage
 .coverage.*
+.coverage/
 coverage.xml
 junit.xml
 htmlcov/
@@ -83,6 +84,11 @@ Thumbs.db
 *.sqlite-journal
 *.db-journal
 *.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
 
 # Evidence vault (never commit real evidence)
 vault/
@@ -100,10 +106,15 @@ reports/*
 !reports/.gitkeep
 exports/*
 !exports/.gitkeep
-manifests/*
-!manifests/.gitkeep
+manifests/local*
+manifests/private*
+manifests/*_local.*
+manifests/*_private.*
 
 # Logs
 *.log
 logs/
 *.log.*
+*.out
+*.err
+*.pid
