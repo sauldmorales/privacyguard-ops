@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     manifest_filename: str = "brokers_manifest.yaml"
     manifest_max_size_kb: int = 512  # reject manifests > 512 KB
 
+    # ── Database ────────────────────────────────────────────
+    db_filename: str = "pgo.db"
+
     # ── Logging ─────────────────────────────────────────────
     log_level: str = "INFO"
     log_json: bool = True  # structured JSON by default
@@ -87,6 +90,12 @@ class Settings(BaseSettings):
         """Full path to the active broker manifest."""
         assert self.manifests_dir is not None  # guaranteed after validation
         return self.manifests_dir / self.manifest_filename
+
+    @property
+    def db_path(self) -> Path:
+        """Full path to the SQLite database."""
+        assert self.data_dir is not None  # guaranteed after validation
+        return self.data_dir / self.db_filename
 
     def ensure_dirs(self) -> None:
         """Create all local-state directories if they don't exist."""
