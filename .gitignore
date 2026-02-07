@@ -1,83 +1,94 @@
-# --- Python bytecode / caches ---
+# =========================================================
+# 🛡️ PRIVACYGUARD-OPS (PGO) — Enterprise Python / Zero-Trust
+# =========================================================
+
+# -------------------------
+# Python bytecode / caches
+# -------------------------
 __pycache__/
 *.py[cod]
 *$py.class
-*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.pyre/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
 
-# --- Python tooling / caches ---
-.cache/
-pip-log.txt
-pip-delete-this-directory.txt
-pip-wheel-metadata/
-__pypackages__/
-.Python
-
-# --- Virtual environments ---
+# -------------------------
+# Virtual environments
+# -------------------------
 .venv/
 venv/
 ENV/
 env/
-env.bak/
-venv.bak/
+.Python
 .direnv/
 .envrc
 
-# --- Build / packaging ---
+# -------------------------
+# Packaging / build
+# -------------------------
 build/
 dist/
 *.egg-info/
 .eggs/
 *.egg
 *.whl
-*.tar.gz
-*.zip
-.pdm-build/
 
-# --- Test / coverage ---
-.pytest_cache/
-.coverage
-.coverage.*
-.coverage/
-coverage.xml
-junit.xml
-htmlcov/
-.tox/
-.nox/
-.hypothesis/
-
-# --- Type check / lint caches ---
-.mypy_cache/
-.ruff_cache/
-.pytype/
-.pyre/
-
-# --- Jupyter / IPython ---
-.ipynb_checkpoints/
-.ipython/
-profile_default/
-
-# --- IDEs / editors ---
+# -------------------------
+# IDE / OS noise
+# -------------------------
 .vscode/
 .idea/
 *.swp
+*.swo
+*~
 .DS_Store
-.editorconfig
-
-# --- OS / WSL noise ---
 Thumbs.db
 
-# --- Secrets / env files ---
+# -------------------------
+# 🔒 Secrets / credentials (hard block)
+# -------------------------
 .env
 .env.*
 *.env
+!.env.example
+
 *.secrets
 *.key
 *.pem
 *.pfx
 *.crt
+*.cer
+*.ppk
+.netrc
 
-# --- App data (PGO) ---
-# Local DB / state
+id_rsa
+id_ed25519
+authorized_keys
+
+# Cloud creds (common paths/files)
+.aws/
+*.aws
+credentials
+config
+application_default_credentials.json
+gcloud-service-key.json
+*-key.json
+*.json.enc
+*.publishsettings
+*.azureProfile
+
+# -------------------------
+# Databases / runtime state
+# -------------------------
 *.db
 *.sqlite
 *.sqlite3
@@ -85,36 +96,108 @@ Thumbs.db
 *.db-journal
 *.db-wal
 *.db-shm
-*.sqlite-wal
-*.sqlite-shm
-*.sqlite3-wal
-*.sqlite3-shm
+dump.rdb
+appendonly.aof
+pgdata/
+*.pgpass
 
-# Evidence vault (never commit real evidence)
-vault/
-evidence/
-*.enc
-
-# Data (keep folder, ignore content)
-data/*
-!data/.gitkeep
-sample_data/*
-!sample_data/.gitkeep
-
-# Generated reports / exports (keep folder, ignore content)
-reports/*
-!reports/.gitkeep
-exports/*
-!exports/.gitkeep
-manifests/local*
-manifests/private*
-manifests/*_local.*
-manifests/*_private.*
-
+# -------------------------
 # Logs
+# -------------------------
 *.log
 logs/
 *.log.*
-*.out
-*.err
-*.pid
+
+# -------------------------
+# PGO local-first artifacts (keep folders, ignore contents)
+# -------------------------
+vault/*
+!vault/.gitkeep
+
+data/*
+!data/.gitkeep
+
+reports/*
+!reports/.gitkeep
+
+exports/*
+!exports/.gitkeep
+
+sample_data/*
+!sample_data/.gitkeep
+
+# If you ever add evidence/ as a separate folder:
+evidence/*
+!evidence/.gitkeep
+*.enc
+
+# -------------------------
+# 🧾 Manifests (safe-by-construction)
+# -------------------------
+# Rule: Only commit templates; never commit real operational manifests.
+manifests/*
+!manifests/.gitkeep
+!manifests/*.example.yaml
+!manifests/*.example.yml
+
+# Explicitly ignore local/real manifests (what you actually run)
+manifests/*.local.yaml
+manifests/*.local.yml
+manifests/*.local.json
+manifests/**/private/*
+
+# Also ignore obvious secret-shaped manifest names
+manifests/**/*secret*
+manifests/**/*token*
+manifests/**/*password*
+manifests/**/*.pem
+manifests/**/*.key
+
+# -------------------------
+# Docker / IaC (optional but safe)
+# -------------------------
+docker-compose.override.yml
+*.tfstate
+*.tfstate.backup
+*.tfvars
+.terraform/
+
+# -------------------------
+# Security tooling outputs
+# -------------------------
+bandit-report.json
+safety-report.json
+.trivyignore
+.snyk
+
+# -------------------------
+# Local scratch
+# -------------------------
+.local/
+tmp/
+temp/
+*.tmp
+*.temp
+.scratch/
+
+# -------------------------
+# Pre-commit / secret scanning
+# -------------------------
+.pre-commit-config.yaml.bak
+.secrets.baseline
+
+# -------------------------
+# Python REPL / Jupyter
+# -------------------------
+*.ipynb
+.ipynb_checkpoints/
+*.pyc
+
+# -------------------------
+# Backup files from editors / OS
+# -------------------------
+*.bak
+*.orig
+*.save
+*~
+\#*\#

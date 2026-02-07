@@ -1,5 +1,15 @@
 # PrivacyGuard Ops (PGO)
 
+## AI-assisted reference scaffold (disclosure)
+
+This repository includes an AI-generated/AI-assisted enterprise scaffold (Claude Opus 4.6) used as a learning reference to study production-grade project structure, layering, and security practices.
+
+- I do **not** claim authorship of the original scaffold design.
+- Any code that remains in this repo is treated as **untrusted until reviewed**, tested, and hardened.
+- The goal is educational: to learn how enterprise Python systems are structured and then implement each component with verification (tests, type checks, security checks).
+
+---
+
 **PGO** is a **local-first opt-out auditing tool** for data brokers. It guides **BYOS (Bring Your Own Session)** workflows, stores **encrypted evidence** (redacted screenshots/PDFs), and produces an **append-only, tamper-evident audit trail** (hash-chained event log) to support verification and resurfacing detection.
 
 > PGO does **not** remove data automatically. It audits *your* opt-out actions with reproducible proof and integrity checks.
