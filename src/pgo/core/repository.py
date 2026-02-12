@@ -17,8 +17,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from pgo.core.errors import StateTransitionInvalid
-from pgo.models import FindingStatus
-from pgo.state import can_transition, TransitionEvent
+from pgo.core.models import FindingStatus
+from pgo.core.state import can_transition, TransitionEvent
 
 
 @dataclass(frozen=True)

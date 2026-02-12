@@ -15,8 +15,8 @@ from pgo.core.audit import append, export_audit, verify_chain
 from pgo.core.db import open_db
 from pgo.core.errors import AuditChainBroken
 from pgo.core.repository import create_finding, transition_finding
-from pgo.models import FindingStatus
-from pgo.state import TransitionEvent
+from pgo.core.models import FindingStatus
+from pgo.core.state import TransitionEvent
 
 
 @pytest.fixture()

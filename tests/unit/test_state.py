@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 
 from pgo.core.errors import StateTransitionInvalid
-from pgo.models import FindingStatus
-from pgo.state import ALLOWED_TRANSITIONS, can_transition, transition
+from pgo.core.models import FindingStatus
+from pgo.core.state import ALLOWED_TRANSITIONS, can_transition, transition
 
 
 # ── Valid transitions ───────────────────────────────────────

@@ -30,7 +30,8 @@ from pgo.core.logging import configure_logging
 from pgo.core.repository import create_finding, get_finding, list_findings, transition_finding
 from pgo.core.settings import Settings
 from pgo.manifest import load_brokers_manifest
-from pgo.models import FindingStatus
+from pgo.core.models import FindingStatus
+from pgo.core.state import TransitionEvent
 
 logger = structlog.get_logger()
 
@@ -178,8 +179,6 @@ def add(
         raise typer.Exit(code=1)
 
     # Audit the creation as a transition from none → discovered.
-    from pgo.state import TransitionEvent
-
     event = TransitionEvent(
         finding_id=f.finding_id,
         from_status=FindingStatus.DISCOVERED,
@@ -298,6 +297,123 @@ def export_audit_cmd(
 
     output.write_text(json.dumps(events, indent=2, default=str), encoding="utf-8")
     print(f"[green]Exported[/green] {len(events)} events → {output}")
+
+
+# ── BYOS workflow commands (stubs — v0.1) ───────────────────
+@app.command()
+def scan(
+    ctx: typer.Context,
+    query: str = typer.Argument(help="Search query (e.g. 'site:broker.com John Doe')."),
+) -> None:
+    """Discover candidates (CSE or manual inputs). [stub]"""
+    _ = _settings(ctx)
+    print(f"[yellow]scan[/yellow] is not yet implemented. Query: {query}")
+    print("This will search for broker profiles matching your query.")
+    raise typer.Exit(code=0)
+
+
+@app.command(name="add-url")
+def add_url(
+    ctx: typer.Context,
+    url: str = typer.Argument(help="Public profile URL to add."),
+    broker: str = typer.Option(..., "--broker", "-b", help="Name of the data broker."),
+    finding_id: str = typer.Option(None, "--id", help="Custom finding ID (auto-generated if omitted)."),
+) -> None:
+    """Add a known public profile URL manually. [stub]"""
+    _ = _settings(ctx)
+    print(f"[yellow]add-url[/yellow] is not yet fully implemented.")
+    print(f"  Broker: {broker}")
+    print(f"  URL   : {url}")
+    print("Use [bold]pgo add[/bold] for the current working implementation.")
+    raise typer.Exit(code=0)
+
+
+@app.command()
+def confirm(
+    ctx: typer.Context,
+    finding_id: str = typer.Argument(help="Finding ID to confirm."),
+    notes: str = typer.Option("", "--notes", "-n", help="Confirmation notes."),
+) -> None:
+    """Confirm an item as 'yours' (BYOS) + capture evidence. [stub]"""
+    conn = _db(ctx)
+    try:
+        event = transition_finding(conn, finding_id, FindingStatus.CONFIRMED)
+    except KeyError:
+        print(f"[red]ERROR:[/red] Finding '{finding_id}' not found.")
+        raise typer.Exit(code=1)
+    except StateTransitionInvalid as exc:
+        print(f"[red]ERROR:[/red] {exc}")
+        raise typer.Exit(code=1)
+
+    entry_hash = audit_append(conn, event, notes=notes)
+    print(
+        f"[green]Confirmed:[/green] {finding_id}  "
+        f"{event.from_status.value} → {event.to_status.value}  "
+        f"hash={entry_hash[:12]}…"
+    )
+    print("[yellow]Evidence capture not yet implemented.[/yellow]")
+
+
+@app.command()
+def optout(
+    ctx: typer.Context,
+    finding_id: str = typer.Argument(help="Finding ID to submit opt-out for."),
+    notes: str = typer.Option("", "--notes", "-n", help="Submission notes."),
+) -> None:
+    """Guided opt-out submission steps (BYOS) + capture proof. [stub]"""
+    conn = _db(ctx)
+    try:
+        event = transition_finding(conn, finding_id, FindingStatus.SUBMITTED)
+    except KeyError:
+        print(f"[red]ERROR:[/red] Finding '{finding_id}' not found.")
+        raise typer.Exit(code=1)
+    except StateTransitionInvalid as exc:
+        print(f"[red]ERROR:[/red] {exc}")
+        raise typer.Exit(code=1)
+
+    entry_hash = audit_append(conn, event, notes=notes)
+    print(
+        f"[green]Opt-out submitted:[/green] {finding_id}  "
+        f"{event.from_status.value} → {event.to_status.value}  "
+        f"hash={entry_hash[:12]}…"
+    )
+    print("[yellow]Submission proof capture not yet implemented.[/yellow]")
+
+
+@app.command(name="verify")
+def verify_cmd(
+    ctx: typer.Context,
+    finding_id: str = typer.Option(None, "--finding", "-f", help="Specific finding to verify."),
+    due: bool = typer.Option(False, "--due", help="Show only findings due for re-check."),
+) -> None:
+    """Scheduled re-checks (Tier A primary signal). [stub]"""
+    _ = _settings(ctx)
+    if due:
+        print("[yellow]--due filtering is not yet implemented.[/yellow]")
+    if finding_id:
+        print(f"[yellow]verify[/yellow] for finding '{finding_id}' is not yet implemented.")
+    else:
+        print("[yellow]verify[/yellow] (batch re-check) is not yet implemented.")
+    print("This will re-visit broker pages to detect resurfacing.")
+    raise typer.Exit(code=0)
+
+
+@app.command()
+def wipe(
+    ctx: typer.Context,
+    confirm_wipe: bool = typer.Option(False, "--yes", help="Skip confirmation prompt."),
+) -> None:
+    """Wipe local case data + vault (user initiated). [stub]"""
+    s = _settings(ctx)
+    if not confirm_wipe:
+        print("[red bold]WARNING:[/red bold] This will delete ALL local data (DB + vault).")
+        print("Run with --yes to confirm.")
+        raise typer.Exit(code=1)
+
+    # TODO: implement actual wipe of vault_dir, data_dir, reports_dir, exports_dir
+    print("[yellow]wipe[/yellow] is not yet fully implemented.")
+    print(f"  Would delete: {s.data_dir}, {s.vault_dir}")
+    raise typer.Exit(code=0)
 
 
 # ── Entrypoint ──────────────────────────────────────────────
