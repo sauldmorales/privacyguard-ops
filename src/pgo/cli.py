@@ -27,7 +27,7 @@ from pgo.core.errors import (
     StateTransitionInvalid,
 )
 from pgo.core.logging import configure_logging
-from pgo.core.repository import create_finding, get_finding, list_findings, transition_finding
+from pgo.core.repository import create_finding, list_findings, transition_finding
 from pgo.core.settings import Settings
 from pgo.manifest import load_brokers_manifest
 from pgo.core.models import FindingStatus
@@ -40,7 +40,7 @@ app = typer.Typer(help="PrivacyGuard Ops — local-first opt-out auditing CLI.")
 
 # ── Callback (runs before every command) ────────────────────
 @app.callback(invoke_without_command=True)
-def _main_callback(
+def _main_callback(  # pyright: ignore[reportUnusedFunction]
     ctx: typer.Context,
     log_level: str = typer.Option("INFO", "--log-level", envvar="PGO_LOG_LEVEL", help="Log level."),
     log_json: bool = typer.Option(True, "--log-json/--log-text", envvar="PGO_LOG_JSON", help="JSON or human logs."),
@@ -272,7 +272,7 @@ def verify_chain_cmd(ctx: typer.Context) -> None:
 @app.command(name="export-audit")
 def export_audit_cmd(
     ctx: typer.Context,
-    output: Path = typer.Option(None, "--output", "-o", help="Output file path (default: exports/audit.json)."),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output file path (default: exports/audit.json)."),
     verify: bool = typer.Option(True, "--verify/--no-verify", help="Verify chain before exporting."),
 ) -> None:
     """Export the full audit trail to JSON."""
