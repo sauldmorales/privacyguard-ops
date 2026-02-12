@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from pgo.core.errors import StateTransitionInvalid
-from pgo.models import FindingStatus
+from pgo.core.models import FindingStatus
 
 
 # Reglas: de dónde a dónde se puede mover

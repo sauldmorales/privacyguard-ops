@@ -32,7 +32,7 @@ import sqlite3
 import structlog
 
 from pgo.core.errors import AuditChainBroken
-from pgo.state import TransitionEvent
+from pgo.core.state import TransitionEvent
 
 logger = structlog.get_logger()
 

@@ -139,6 +139,7 @@ manifests/*
 !manifests/.gitkeep
 !manifests/*.example.yaml
 !manifests/*.example.yml
+!manifests/brokers_manifest.yaml
 
 # Explicitly ignore local/real manifests (what you actually run)
 manifests/*.local.yaml
@@ -152,6 +153,12 @@ manifests/**/*token*
 manifests/**/*password*
 manifests/**/*.pem
 manifests/**/*.key
+
+# -------------------------
+# Scripts (allow committed helpers, ignore generated output)
+# -------------------------
+scripts/*.out
+scripts/*.tmp
 
 # -------------------------
 # Docker / IaC (optional but safe)

@@ -13,7 +13,7 @@ from pgo.core.repository import (
     list_findings,
     transition_finding,
 )
-from pgo.models import FindingStatus
+from pgo.core.models import FindingStatus
 
 
 @pytest.fixture()
