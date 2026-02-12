@@ -166,9 +166,9 @@ def _canonical_blob(event: TransitionEvent) -> str:
     the field is a :class:`FindingStatus` or a plain string (as happens
     when reconstructing events from DB rows during verification).
     """
-    from_val = event.from_status.value if hasattr(event.from_status, "value") else event.from_status
-    to_val = event.to_status.value if hasattr(event.to_status, "value") else event.to_status
-    obj = {
+    from_val: str = event.from_status.value if hasattr(event.from_status, "value") else event.from_status
+    to_val: str = event.to_status.value if hasattr(event.to_status, "value") else event.to_status
+    obj: dict[str, str] = {
         "at_utc": event.at_utc,
         "finding_id": event.finding_id,
         "from_status": from_val,
