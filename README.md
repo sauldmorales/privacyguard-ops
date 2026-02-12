@@ -79,27 +79,37 @@ PGO is designed for **operational auditing** and reproducible evidence under nor
 ## Project layout (src-layout)
 ```
 privacyguard-ops/
-src/pgo/
-**init**.py
-cli.py
-core/
-**init**.py
-state.py        # state machine + event emitter
-models.py       # Pydantic models + enums
-audit.py        # export + verification (chain + optional HMAC)
-modules/
-**init**.py
-vault.py        # evidence vault (redact/hash/encrypt)
-pii_guard.py    # redaction + hashing helpers
-manifests/
-brokers_manifest.yaml
-reports/
-tests/
-unit/
-integration/
-README.md
-pyproject.toml
-.gitignore
+├── src/pgo/
+│   ├── __init__.py
+│   ├── cli.py           # CLI entry point and commands
+│   ├── models.py        # Pydantic models + enums
+│   ├── state.py         # state machine + event emitter
+│   ├── manifest.py      # manifest loading and validation
+│   └── core/
+│       ├── __init__.py
+│       ├── audit.py     # export + verification (chain + optional HMAC)
+│       ├── db.py        # database operations
+│       ├── errors.py    # custom exceptions
+│       ├── logging.py   # structured logging setup
+│       ├── paths.py     # path management utilities
+│       ├── repository.py # data repository layer
+│       └── settings.py  # configuration management
+├── tests/
+│   ├── unit/            # unit tests for individual components
+│   └── integration/     # integration tests for workflows (planned)
+├── manifests/
+│   └── brokers_manifest.yaml
+├── docs/
+│   └── git-commands.md  # advanced Git usage guide
+├── data/                # local database files (ignored)
+├── vault/               # evidence storage (ignored)
+├── reports/             # generated reports (ignored)
+├── exports/             # audit exports (ignored)
+├── sample_data/         # sample data for testing (ignored)
+├── CONTRIBUTING.md
+├── README.md
+├── pyproject.toml
+└── .gitignore
 
 ```
 
@@ -201,6 +211,17 @@ Minimum test categories (v0.1):
 * audit integrity (tamper detection + chain verification)
 * PII leak detection (regex scanning exports/log text)
 * vault encryption/decryption correctness
+
+---
+
+## Documentation
+
+### Additional Resources
+
+- **[Contributing Guide](CONTRIBUTING.md)** - Guidelines for contributing to the project
+- **[Advanced Git Commands](docs/git-commands.md)** - Comprehensive guide to `git stash`, `git cherry-pick`, `git revert`, and `git reset`
+
+These guides help contributors work effectively with the codebase and manage their development workflow.
 
 ---
 
