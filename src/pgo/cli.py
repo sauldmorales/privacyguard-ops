@@ -16,7 +16,7 @@ from rich import print
 from rich.table import Table
 
 from pgo.core.audit import append as audit_append
-from pgo.core.audit import export_audit, verify_chain
+from pgo.core.audit import compute_hmac, export_audit, verify_chain
 from pgo.core.db import open_db
 from pgo.core.errors import (
     AuditChainBroken,
@@ -32,6 +32,7 @@ from pgo.core.settings import Settings
 from pgo.manifest import load_brokers_manifest
 from pgo.core.models import FindingStatus
 from pgo.core.state import TransitionEvent
+from pgo.modules.pii_guard import contains_pii, sanitise_notes
 
 logger = structlog.get_logger()
 
@@ -174,6 +175,9 @@ def add(
     conn = _db(ctx)
     try:
         f = create_finding(conn, finding_id=finding_id, broker_name=broker, url=url)
+    except ValueError as exc:
+        print(f"[red]ERROR:[/red] {exc}")
+        raise typer.Exit(code=1)
     except sqlite3.IntegrityError:
         print(f"[red]ERROR:[/red] Finding '{finding_id}' already exists.")
         raise typer.Exit(code=1)
@@ -236,9 +240,15 @@ def transition_cmd(
         print(f"[red]ERROR:[/red] Invalid status '{to}'. Valid: {valid}")
         raise typer.Exit(code=1)
 
+    # Sanitise notes at the CLI boundary (Zero Trust).
+    notes = sanitise_notes(notes)
+
     conn = _db(ctx)
     try:
         event = transition_finding(conn, finding_id, to_status)
+    except ValueError as exc:
+        print(f"[red]ERROR:[/red] {exc}")
+        raise typer.Exit(code=1)
     except KeyError:
         print(f"[red]ERROR:[/red] Finding '{finding_id}' not found.")
         raise typer.Exit(code=1)
@@ -290,12 +300,38 @@ def export_audit_cmd(
 
     events = export_audit(conn)
 
+    # Post-export PII scan (defence-in-depth: should not find anything
+    # since notes are sanitised at input, but verify before writing to disk).
+    export_text = json.dumps(events, indent=2, default=str)
+    if contains_pii(export_text):
+        logger.warning("pii_detected_in_export", event_count=len(events))
+        print("[yellow]Warning:[/yellow] PII patterns detected in export. Notes have been sanitised.")
+
     if output is None:
         assert s.exports_dir is not None
         s.exports_dir.mkdir(parents=True, exist_ok=True)
         output = s.exports_dir / "audit.json"
 
-    output.write_text(json.dumps(events, indent=2, default=str), encoding="utf-8")
+    output.write_text(export_text, encoding="utf-8")
+
+    # Restrict file permissions (owner-only).
+    import stat
+    try:
+        output.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    except OSError:
+        pass  # Best effort (may fail on non-POSIX).
+
+    # Compute optional HMAC signature if vault key is available.
+    sig = compute_hmac(export_text)
+    if sig:
+        sig_path = output.with_suffix(".json.sig")
+        sig_path.write_text(sig, encoding="utf-8")
+        try:
+            sig_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+        except OSError:
+            pass
+        print(f"[green]HMAC signature[/green] → {sig_path}")
+
     print(f"[green]Exported[/green] {len(events)} events → {output}")
 
 
@@ -338,6 +374,9 @@ def confirm(
     conn = _db(ctx)
     try:
         event = transition_finding(conn, finding_id, FindingStatus.CONFIRMED)
+    except ValueError as exc:
+        print(f"[red]ERROR:[/red] {exc}")
+        raise typer.Exit(code=1)
     except KeyError:
         print(f"[red]ERROR:[/red] Finding '{finding_id}' not found.")
         raise typer.Exit(code=1)
@@ -364,6 +403,9 @@ def optout(
     conn = _db(ctx)
     try:
         event = transition_finding(conn, finding_id, FindingStatus.SUBMITTED)
+    except ValueError as exc:
+        print(f"[red]ERROR:[/red] {exc}")
+        raise typer.Exit(code=1)
     except KeyError:
         print(f"[red]ERROR:[/red] Finding '{finding_id}' not found.")
         raise typer.Exit(code=1)

@@ -15,6 +15,7 @@ Design decisions
 from __future__ import annotations
 
 import sqlite3
+import stat
 from pathlib import Path
 
 import structlog
@@ -85,6 +86,18 @@ def open_db(db_path: Path) -> sqlite3.Connection:
         ("schema_version", str(SCHEMA_VERSION)),
     )
     conn.commit()
+
+    # Harden file permissions: owner read/write only (Zero Trust).
+    try:
+        db_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+        # Also harden the WAL and SHM files if they exist.
+        for suffix in ("-wal", "-shm"):
+            wal = db_path.parent / (db_path.name + suffix)
+            if wal.exists():
+                wal.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    except OSError:
+        # Best effort — may fail on non-POSIX systems.
+        pass
 
     logger.debug("database_opened", path=str(db_path), schema_version=SCHEMA_VERSION)
     return conn

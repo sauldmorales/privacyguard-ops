@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from pgo.core.errors import StateTransitionInvalid
 from pgo.core.models import FindingStatus
 from pgo.core.state import can_transition, TransitionEvent
+from pgo.modules.pii_guard import validate_broker_name, validate_finding_id, validate_url
 
 
 @dataclass(frozen=True)
@@ -42,8 +43,18 @@ def create_finding(
 ) -> Finding:
     """Insert a new finding in ``discovered`` state.
 
+    All inputs are validated through the PII guard before touching SQLite.
+
     Returns the created :class:`Finding`.
+
+    Raises
+    ------
+    ValueError
+        If any input fails whitelist validation.
     """
+    finding_id = validate_finding_id(finding_id)
+    broker_name = validate_broker_name(broker_name)
+    url = validate_url(url)
     now = datetime.now(timezone.utc).isoformat()
     conn.execute(
         """
@@ -65,6 +76,7 @@ def create_finding(
 
 def get_finding(conn: sqlite3.Connection, finding_id: str) -> Finding | None:
     """Fetch a single finding by ID, or ``None`` if not found."""
+    finding_id = validate_finding_id(finding_id)
     row = conn.execute(
         "SELECT * FROM findings WHERE finding_id = ?", (finding_id,)
     ).fetchone()
@@ -98,6 +110,7 @@ def transition_finding(
     StateTransitionInvalid
         If the transition is not allowed.
     """
+    finding_id = validate_finding_id(finding_id)
     finding = get_finding(conn, finding_id)
     if finding is None:
         raise KeyError(f"Finding not found: {finding_id}")

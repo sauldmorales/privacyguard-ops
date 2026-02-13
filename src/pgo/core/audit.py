@@ -20,19 +20,23 @@ breaks and :class:`AuditChainBroken` is raised.
 Export
 ------
 ``export_audit()`` returns the full event log as a list of dicts,
-suitable for JSON/CSV serialisation.
+suitable for JSON/CSV serialisation.  ``compute_hmac()`` provides an
+optional HMAC-SHA256 signature over the export for integrity verification.
 """
 
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
+import os
 import sqlite3
 
 import structlog
 
 from pgo.core.errors import AuditChainBroken
 from pgo.core.state import TransitionEvent
+from pgo.modules.pii_guard import sanitise_notes
 
 logger = structlog.get_logger()
 
@@ -56,6 +60,9 @@ def append(conn: sqlite3.Connection, event: TransitionEvent, *, notes: str = "")
         The SHA-256 hex digest of this entry.
     """
     prev_hash = _get_last_hash(conn)
+
+    # Sanitise notes: redact PII, limit length (Zero Trust boundary).
+    notes = sanitise_notes(notes)
 
     canonical = _canonical_blob(event)
     entry_hash = hashlib.sha256((canonical + prev_hash).encode("utf-8")).hexdigest()
@@ -183,3 +190,33 @@ def _get_last_hash(conn: sqlite3.Connection) -> str:
         "SELECT entry_hash FROM events ORDER BY seq DESC LIMIT 1"
     ).fetchone()
     return row["entry_hash"] if row else ""
+
+
+def compute_hmac(
+    data: str,
+    *,
+    env_var: str = "PGO_VAULT_KEY",
+) -> str | None:
+    """Compute HMAC-SHA256 over exported data for integrity verification.
+
+    Uses the vault key from environment.  Returns ``None`` if the key
+    is not set (HMAC is optional — the hash chain is the primary
+    integrity guarantee).
+
+    Parameters
+    ----------
+    data:
+        The JSON string to sign.
+    env_var:
+        Name of the environment variable holding the signing key.
+
+    Returns
+    -------
+    str | None
+        Hex-encoded HMAC-SHA256 signature, or None if key unavailable.
+    """
+    key = os.environ.get(env_var, "").strip()
+    if not key:
+        return None
+    sig = hmac.new(key.encode("utf-8"), data.encode("utf-8"), hashlib.sha256)
+    return sig.hexdigest()
