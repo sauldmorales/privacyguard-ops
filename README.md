@@ -204,6 +204,12 @@ Minimum test categories (v0.1):
 
 ---
 
+## Documentation
+
+* [Estructura de Carpetas (Español)](docs/estructura-carpetas.md) - Detailed explanation of each folder's purpose
+
+---
+
 ## Roadmap (post v0.1)
 
 * Expand broker manifest coverage
