@@ -206,7 +206,7 @@ Minimum test categories (v0.1):
 
 ## Documentation
 
-* [Estructura de Carpetas (Español)](docs/estructura-carpetas.md) - Detailed explanation of each folder's purpose
+* [Estructura de Carpetas (Español)](docs/estructura-carpetas.md) - Explicación detallada del propósito de cada carpeta
 
 ---
 

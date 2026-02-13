@@ -74,7 +74,7 @@ Esta carpeta contiene:
 El vault es el sistema de almacenamiento seguro para evidencia de opt-out. Cada archivo pasa por:
 1. **Redacción**: Elimina PII visible (usando `pii_guard`)
 2. **Hash**: Calcula SHA-256 para verificar integridad
-3. **Encriptación**: Usa Fernet (AES-128-CBC + HMAC) con clave local
+3. **Encriptación**: Usa Fernet (esquema de encriptación simétrica con AES-128 en modo CBC + HMAC) con clave local
 4. **Almacenamiento**: Guarda con timestamp y hash de integridad
 
 **Características de seguridad**:
@@ -234,7 +234,7 @@ Maneja el ciclo de vida de evidencia:
 
 **Modelo de seguridad**:
 - Clave solo en variable de entorno (nunca en disco)
-- Encriptación at-rest con AES-128-CBC + HMAC
+- Encriptación at-rest usando Fernet (esquema de encriptación simétrica con AES-128 en modo CBC + HMAC)
 - Permisos restrictivos en archivos (0o600)
 
 **No-objetivo**: El vault NO captura capturas de pantalla automáticamente. Los usuarios proveen evidencia (BYOS), y el vault la protege.
