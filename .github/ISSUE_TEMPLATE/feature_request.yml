@@ -1,0 +1,58 @@
+name: 💡 Feature Request
+description: Suggest a new feature or improvement for PGO.
+title: "[FEATURE] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ⚠️ Reminder — No PII
+        Do not include real personal data in feature requests. Use placeholders like `[REDACTED]`.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or motivation
+      description: What problem does this feature solve?
+      placeholder: "I'm frustrated when ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How should this feature work?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other approaches you've thought about?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - CLI / UX
+        - Audit trail / integrity
+        - Vault / evidence
+        - PII guards / redaction
+        - Manifest / brokers
+        - CI / DevOps
+        - Documentation
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: pii-check
+    attributes:
+      label: PII confirmation
+      options:
+        - label: I confirm this request does NOT contain real personal information (PII).
+          required: true

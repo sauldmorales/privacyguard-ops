@@ -1,0 +1,64 @@
+# Pre-commit hooks for PrivacyGuard-Ops
+# Install: pip install pre-commit && pre-commit install
+#
+# Rationale: These hooks run BEFORE every commit to catch:
+#   1. Accidentally committed secrets/tokens/keys
+#   2. PII patterns (emails, phone numbers) in source code
+#   3. Linting and formatting issues
+#   4. Common file hygiene problems
+
+repos:
+  # ── Secret detection (critical for a privacy tool) ──
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  # ── General file hygiene ──
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: no-commit-to-branch
+        args: ["--branch", "main"]
+      - id: detect-private-key
+
+  # ── Python linting (ruff) ──
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+
+  # ── Custom PII pattern scanner ──
+  - repo: local
+    hooks:
+      - id: no-pii-patterns
+        name: Block PII patterns in source
+        entry: python -c "
+          import re, sys, pathlib;
+          patterns = [
+            (r'\\b[A-Za-z0-9._%+-]+@(?!example\\.)[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b', 'email address'),
+            (r'\\b\\d{3}[-.]?\\d{3}[-.]?\\d{4}\\b', 'phone number'),
+            (r'\\b\\d{3}-\\d{2}-\\d{4}\\b', 'SSN pattern'),
+          ];
+          found = False;
+          [
+            (setattr(sys, '_f', True) or print(f'  {kind} in {f}:{i+1}: {line.rstrip()}'))
+            if any(re.search(p, line) for p, kind in patterns)
+            else None
+            for f in sys.argv[1:]
+            for i, line in enumerate(pathlib.Path(f).read_text(errors='ignore').splitlines())
+          ];
+          sys.exit(1 if getattr(sys, '_f', False) else 0)
+          "
+        language: system
+        types: [python]
+        exclude: "test_pii_guard\\.py"

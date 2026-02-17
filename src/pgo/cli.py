@@ -357,7 +357,7 @@ def add_url(
 ) -> None:
     """Add a known public profile URL manually. [stub]"""
     _ = _settings(ctx)
-    print(f"[yellow]add-url[/yellow] is not yet fully implemented.")
+    print("[yellow]add-url[/yellow] is not yet fully implemented.")
     print(f"  Broker: {broker}")
     print(f"  URL   : {url}")
     print("Use [bold]pgo add[/bold] for the current working implementation.")

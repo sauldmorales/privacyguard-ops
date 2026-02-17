@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 Security vulnerability
+    url: https://github.com/saul/privacyguard-ops/blob/main/SECURITY.md
+    about: Report security issues privately — do NOT open a public issue.

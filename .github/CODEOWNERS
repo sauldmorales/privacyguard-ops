@@ -1,0 +1,20 @@
+# CODEOWNERS — Defines who must review PRs touching specific paths.
+# Rationale: PGO handles PII, encryption, and audit integrity.
+# Critical paths MUST have explicit ownership to prevent unreviewed changes.
+
+# Default owner for everything
+*                           @saul
+
+# Security-critical: vault, PII guards, audit chain
+src/pgo/modules/vault.py    @saul
+src/pgo/modules/pii_guard.py @saul
+src/pgo/core/audit.py       @saul
+src/pgo/core/state.py       @saul
+src/pgo/core/models.py      @saul
+
+# CI/CD and security configs
+.github/                    @saul
+SECURITY.md                 @saul
+
+# Manifests (broker definitions)
+manifests/                  @saul

@@ -21,7 +21,7 @@ from pgo.core.errors import VaultKeyMissing, VaultWriteFailed
 # Skip all tests if cryptography is not installed.
 cryptography = pytest.importorskip("cryptography")
 
-from pgo.modules.vault import (
+from pgo.modules.vault import (  # noqa: E402
     compute_integrity_hash,
     harden_directory_permissions,
     retrieve_evidence,
