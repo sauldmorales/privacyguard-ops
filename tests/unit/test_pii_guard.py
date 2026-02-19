@@ -71,21 +71,42 @@ class TestRedactPii:
         assert redact_pii(text) == text
 
 
-# ── Tokenisation ───────────────────────────────────────────
+# ── Tokenisation (HMAC-SHA256) ─────────────────────────────
 class TestTokenise:
+    @pytest.fixture(autouse=True)
+    def _set_token_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Provide a token key for all tokenisation tests."""
+        monkeypatch.setenv("PGO_TOKEN_KEY", "test-hmac-key-for-unit-tests")
+
     def test_deterministic(self) -> None:
         assert tokenise("hello") == tokenise("hello")
 
     def test_different_inputs(self) -> None:
         assert tokenise("hello") != tokenise("world")
 
-    def test_salt_changes_output(self) -> None:
-        assert tokenise("hello", salt="a") != tokenise("hello", salt="b")
+    def test_different_key_changes_output(self) -> None:
+        t1 = tokenise("hello", key="key-a")
+        t2 = tokenise("hello", key="key-b")
+        assert t1 != t2
 
     def test_returns_hex_string(self) -> None:
         result = tokenise("test")
-        assert len(result) == 64  # SHA-256 hex digest
+        assert len(result) == 64  # HMAC-SHA256 hex digest
         assert all(c in "0123456789abcdef" for c in result)
+
+    def test_requires_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """tokenise raises ValueError if no key is available."""
+        monkeypatch.delenv("PGO_TOKEN_KEY", raising=False)
+        monkeypatch.delenv("PGO_VAULT_KEY", raising=False)
+        with pytest.raises(ValueError, match="secret key"):
+            tokenise("hello")
+
+    def test_falls_back_to_vault_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """If PGO_TOKEN_KEY is unset, falls back to PGO_VAULT_KEY."""
+        monkeypatch.delenv("PGO_TOKEN_KEY", raising=False)
+        monkeypatch.setenv("PGO_VAULT_KEY", "fallback-vault-key")
+        result = tokenise("hello")
+        assert len(result) == 64  # still works
 
 
 # ── validate_finding_id ────────────────────────────────────

@@ -12,7 +12,7 @@
 
 Instead, please report them responsibly:
 
-1. **Email**: Send details to **security@privacyguard-ops.dev** (or the maintainer's email).
+1. **Email**: Report via [GitHub Security Advisories](https://github.com/sauldmorales/privacyguard-ops/security/advisories) (preferred) or contact the maintainer directly.
 2. **Subject**: `[SECURITY] <short description>`
 3. **Include**:
    - Description of the vulnerability
@@ -51,7 +51,7 @@ PGO follows these security principles by design:
 
 1. **Local-first**: No data leaves the machine unless the user explicitly exports.
 2. **No credentials stored**: BYOS (Bring Your Own Session) — PGO never handles portal passwords.
-3. **PII guards**: All free-text fields pass through redaction/hashing before storage.
-4. **Append-only audit trail**: Events are hash-chained; tampering is detectable.
-5. **Encrypted evidence vault**: Evidence at rest uses `cryptography` (Fernet/AES).
-6. **Minimal dependencies**: Only well-maintained, audited libraries.
+3. **PII guards**: All free-text fields pass through HMAC tokenisation and regex redaction before storage. Logs are scrubbed by a structlog PII processor.
+4. **Append-only audit trail**: Events are hash-chained (notes included in hash); SQLite triggers block UPDATE/DELETE at the DB engine level.
+5. **Encrypted evidence vault**: Evidence at rest uses **AES-256-GCM** (AEAD) with **PBKDF2-HMAC-SHA256** key derivation (600,000 iterations, per-file random salt).
+6. **Minimal dependencies**: Only well-maintained, audited libraries. Supply chain hardened with hash-pinned lockfile and SHA-pinned GitHub Actions.

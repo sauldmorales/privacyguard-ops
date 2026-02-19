@@ -14,6 +14,8 @@ passes through here before touching SQLite or exports.
 from __future__ import annotations
 
 import hashlib
+import hmac
+import os
 import re
 
 # ── PII regex patterns ──────────────────────────────────────
@@ -73,25 +75,47 @@ def contains_pii(text: str) -> bool:
     return any(pattern.search(text) for _, pattern in _PII_PATTERNS)
 
 
-def tokenise(value: str, *, salt: str = "") -> str:
-    """Return a one-way SHA-256 token of *value*.
+def tokenise(value: str, *, key: str = "") -> str:
+    """Return a one-way HMAC-SHA256 token of *value*.
 
-    Used to store identifiers without exposing the original.
-    The optional *salt* prevents rainbow-table attacks.
+    Uses HMAC (keyed hash) instead of plain SHA-256 to defend against
+    dictionary and rainbow-table attacks on low-entropy inputs like
+    phone numbers or email addresses.
+
+    If *key* is not provided, the function reads ``PGO_TOKEN_KEY`` from
+    the environment (falling back to ``PGO_VAULT_KEY``).  If neither is
+    set, a ``ValueError`` is raised — tokenisation without a secret key
+    offers no protection against offline attacks.
 
     Parameters
     ----------
     value:
         The string to tokenise (e.g. an email, a name).
-    salt:
-        Optional salt (e.g. from ``PGO_VAULT_KEY``).
+    key:
+        Explicit HMAC key.  If empty, the environment is consulted.
 
     Returns
     -------
     str
-        Hex-encoded SHA-256 digest.
+        Hex-encoded HMAC-SHA256 digest.
+
+    Raises
+    ------
+    ValueError
+        If no HMAC key is available (neither argument nor environment).
     """
-    return hashlib.sha256(f"{salt}{value}".encode("utf-8")).hexdigest()
+    if not key:
+        key = os.environ.get("PGO_TOKEN_KEY", "") or os.environ.get("PGO_VAULT_KEY", "")
+    if not key:
+        raise ValueError(
+            "Tokenisation requires a secret key. "
+            "Set PGO_TOKEN_KEY or PGO_VAULT_KEY environment variable."
+        )
+    return hmac.new(
+        key.encode("utf-8"),
+        value.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def validate_finding_id(finding_id: str) -> str:
