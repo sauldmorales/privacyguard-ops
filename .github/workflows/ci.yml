@@ -17,12 +17,14 @@ jobs:
         python-version: ["3.12"]
 
     steps:
-      - uses: actions/checkout@v4
+      # All actions pinned by commit SHA to prevent supply-chain attacks
+      # (mutable tags like @v4 can be overwritten by a compromised repo).
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
           fetch-depth: 0  # Needed for gitleaks full history scan
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # v5.4.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -45,12 +47,12 @@ jobs:
   secret-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Gitleaks — scan for secrets
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@83373cf2f8c4db6e24b41c1a9b086bb9619e9cd3  # v2.3.7
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -58,10 +60,10 @@ jobs:
   dependency-audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # v5.4.0
         with:
           python-version: "3.12"
 
@@ -72,3 +74,26 @@ jobs:
 
       - name: pip-audit — check for known vulnerabilities
         run: pip-audit --strict --desc -r requirements.lock.txt
+
+  # ── SBOM generation (software bill of materials for compliance) ──
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # v5.4.0
+        with:
+          python-version: "3.12"
+
+      - name: Generate SBOM (CycloneDX)
+        run: |
+          python -m pip install --upgrade pip
+          pip install cyclonedx-bom
+          pip install -e ".[dev]"
+          cyclonedx-py environment -o sbom.json --output-format json
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: sbom-cyclonedx
+          path: sbom.json

@@ -51,8 +51,8 @@ def append(conn: sqlite3.Connection, event: TransitionEvent, *, notes: str = "")
     event:
         The transition event to record.
     notes:
-        Optional free-text annotation (will be stored but NOT included
-        in the hash — so annotations can be added without breaking the chain).
+        Optional free-text annotation.  **Included in the hash chain**
+        so that any modification to notes is tamper-detectable.
 
     Returns
     -------
@@ -64,7 +64,7 @@ def append(conn: sqlite3.Connection, event: TransitionEvent, *, notes: str = "")
     # Sanitise notes: redact PII, limit length (Zero Trust boundary).
     notes = sanitise_notes(notes)
 
-    canonical = _canonical_blob(event)
+    canonical = _canonical_blob(event, notes=notes)
     entry_hash = hashlib.sha256((canonical + prev_hash).encode("utf-8")).hexdigest()
 
     conn.execute(
@@ -103,7 +103,7 @@ def verify_chain(conn: sqlite3.Connection) -> int:
         If any hash does not match the recomputed value.
     """
     rows = conn.execute(
-        "SELECT seq, finding_id, from_status, to_status, at_utc, entry_hash, prev_hash "
+        "SELECT seq, finding_id, from_status, to_status, at_utc, entry_hash, prev_hash, notes "
         "FROM events ORDER BY seq"
     ).fetchall()
 
@@ -114,6 +114,7 @@ def verify_chain(conn: sqlite3.Connection) -> int:
         seq = row["seq"]
         stored_hash = row["entry_hash"]
         stored_prev = row["prev_hash"]
+        stored_notes = row["notes"]
 
         # Verify prev_hash linkage.
         if stored_prev != expected_prev:
@@ -122,14 +123,14 @@ def verify_chain(conn: sqlite3.Connection) -> int:
                 f"but found {stored_prev[:12]}..."
             )
 
-        # Recompute entry_hash from event data.
+        # Recompute entry_hash from event data (including notes).
         event = TransitionEvent(
             finding_id=row["finding_id"],
             from_status=row["from_status"],
             to_status=row["to_status"],
             at_utc=row["at_utc"],
         )
-        canonical = _canonical_blob(event)
+        canonical = _canonical_blob(event, notes=stored_notes)
         recomputed = hashlib.sha256((canonical + stored_prev).encode("utf-8")).hexdigest()
 
         if recomputed != stored_hash:
@@ -163,8 +164,8 @@ def export_audit(conn: sqlite3.Connection) -> list[dict[str, str | int]]:
 
 # ── Internal helpers ────────────────────────────────────────
 
-def _canonical_blob(event: TransitionEvent) -> str:
-    """Deterministic JSON serialisation of an event.
+def _canonical_blob(event: TransitionEvent, *, notes: str = "") -> str:
+    """Deterministic JSON serialisation of an event (including notes).
 
     Sorted keys, no whitespace — so the same event always produces the
     same string regardless of Python dict ordering or formatting.
@@ -172,6 +173,9 @@ def _canonical_blob(event: TransitionEvent) -> str:
     Uses ``.value`` for enum fields to guarantee the same output whether
     the field is a :class:`FindingStatus` or a plain string (as happens
     when reconstructing events from DB rows during verification).
+
+    Notes are included in the canonical blob so that any modification
+    to annotations is detectable through the hash chain.
     """
     from_val: str = event.from_status.value if hasattr(event.from_status, "value") else event.from_status
     to_val: str = event.to_status.value if hasattr(event.to_status, "value") else event.to_status
@@ -179,6 +183,7 @@ def _canonical_blob(event: TransitionEvent) -> str:
         "at_utc": event.at_utc,
         "finding_id": event.finding_id,
         "from_status": from_val,
+        "notes": notes,
         "to_status": to_val,
     }
     return json.dumps(obj, sort_keys=True, separators=(",", ":"))

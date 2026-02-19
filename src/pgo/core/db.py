@@ -54,6 +54,22 @@ CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+-- ── Append-only enforcement (Zero Trust) ──────────────────
+-- These triggers make the events table truly immutable at the DB level.
+-- Even if application code is compromised, the DB engine itself blocks
+-- any UPDATE or DELETE on the audit trail.
+CREATE TRIGGER IF NOT EXISTS events_no_update
+    BEFORE UPDATE ON events
+    BEGIN
+        SELECT RAISE(ABORT, 'events table is append-only: UPDATE blocked');
+    END;
+
+CREATE TRIGGER IF NOT EXISTS events_no_delete
+    BEFORE DELETE ON events
+    BEGIN
+        SELECT RAISE(ABORT, 'events table is append-only: DELETE blocked');
+    END;
 """
 
 

@@ -1,5 +1,6 @@
 """Tests for pgo.core.db — SQLite manager."""
 
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -82,4 +83,53 @@ class TestOpenDb:
         # sqlite3.Row supports key-based access
         assert row["key"] == "test_key"
         assert row["value"] == "hello"
+        conn.close()
+
+
+class TestAppendOnlyTriggers:
+    """Verify that the DB-level triggers block UPDATE/DELETE on events."""
+
+    def test_update_on_events_blocked(self, db_path: Path) -> None:
+        conn = open_db(db_path)
+        # Insert a finding + event so we have something to tamper with.
+        conn.execute(
+            "INSERT INTO findings(finding_id, broker_name, status, created_utc, updated_utc) "
+            "VALUES ('f-1', 'TestBroker', 'discovered', '2025-01-01', '2025-01-01')"
+        )
+        conn.execute(
+            "INSERT INTO events(finding_id, from_status, to_status, at_utc, entry_hash, prev_hash, notes) "
+            "VALUES ('f-1', 'discovered', 'confirmed', '2025-01-01', 'abc123', '', '')"
+        )
+        conn.commit()
+
+        with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+            conn.execute("UPDATE events SET entry_hash = 'TAMPERED' WHERE seq = 1")
+        conn.close()
+
+    def test_delete_on_events_blocked(self, db_path: Path) -> None:
+        conn = open_db(db_path)
+        conn.execute(
+            "INSERT INTO findings(finding_id, broker_name, status, created_utc, updated_utc) "
+            "VALUES ('f-1', 'TestBroker', 'discovered', '2025-01-01', '2025-01-01')"
+        )
+        conn.execute(
+            "INSERT INTO events(finding_id, from_status, to_status, at_utc, entry_hash, prev_hash, notes) "
+            "VALUES ('f-1', 'discovered', 'confirmed', '2025-01-01', 'abc123', '', '')"
+        )
+        conn.commit()
+
+        with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+            conn.execute("DELETE FROM events WHERE seq = 1")
+        conn.close()
+
+    def test_triggers_exist_in_schema(self, db_path: Path) -> None:
+        conn = open_db(db_path)
+        triggers = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='trigger'"
+            ).fetchall()
+        }
+        assert "events_no_update" in triggers
+        assert "events_no_delete" in triggers
         conn.close()

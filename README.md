@@ -1,12 +1,39 @@
 # PrivacyGuard Ops (PGO)
 
-## AI-assisted reference scaffold (disclosure)
+## AI-Orchestrated Development (Design → Audit → Implementation)
 
-This repository includes an AI-generated/AI-assisted enterprise scaffold (Claude Opus 4.6) used as a learning reference to study production-grade project structure, layering, and security practices.
+This project was built using a structured, multi-LLM workflow to enforce separation of concerns across the software lifecycle. Each model was isolated and assigned a specific responsibility to reduce design drift, improve audit coverage, and drive defensive, enterprise-grade implementation.
 
-- I do **not** claim authorship of the original scaffold design.
-- Any code that remains in this repo is treated as **untrusted until reviewed**, tested, and hardened.
-- The goal is educational: to learn how enterprise Python systems are structured and then implement each component with verification (tests, type checks, security checks).
+### Gemini — Macro Architecture + Hardening Strategy (Strict Audit Framework)
+
+Gemini provided the high-level system design direction and introduced the hardening/audit strategy used as a backbone for the security posture.
+
+**Primary contributions:**
+- Defined the macro architecture constraints and expected enterprise-grade posture.
+- Proposed a strict hardening audit concept (what to harden, where to expect failure, and how to reason about systemic risk).
+- Highlighted structural failure vectors early (before implementation changes).
+
+### ChatGPT — Deep Modular Security Audit (Module-by-Module)
+
+ChatGPT expanded Gemini's hardening concept into a full, granular audit across modules, translating broad security intent into concrete engineering actions.
+
+**Primary contributions:**
+- Performed an exhaustive module-by-module review (logic boundaries, coupling, failure modes).
+- Converted the hardening strategy into actionable corrective paths (preventive/detective/corrective controls per module where applicable).
+- Identified implementation risks that typically appear only during real-world operations (configuration drift, unsafe defaults, error propagation).
+
+### Claude — Defensive Implementation + Code Corrections
+
+Claude executed the implementation fixes and code-level hardening based on the audited direction.
+
+**Primary contributions:**
+- Applied defensive coding practices (stronger typing, safer flows, better error handling patterns where needed).
+- Implemented corrections directly in the codebase to align behavior with the audited architecture.
+- Improved code stability by reducing brittle paths and tightening failure handling to prevent uncontrolled propagation.
+
+> **Note:** This workflow was used to strengthen engineering outcomes by isolating design, verification, and implementation responsibilities—reducing single-model blind spots and improving overall resilience.
+>
+> **Quality gates used:** static review + module-level audit + implementation fixes aligned to a strict hardening strategy.
 
 ---
 
@@ -153,20 +180,21 @@ pgo export --audit --format json
 
 ## Audit log integrity (append-only + hash chain)
 
-PGO uses an append-only event log design:
+PGO uses an append-only event log enforced at the database level:
 
-* Every transition emits an event row (no updates/deletes)
+* Every transition emits an event row.
+* **SQLite triggers** physically block `UPDATE` and `DELETE` on the events table — the append-only guarantee is enforced by the DB engine, not just application logic.
 * Each event stores:
-
-	* `entry_hash = SHA-256(canonical_event_blob)`
+	* `entry_hash = SHA-256(canonical_event_blob)` — includes event fields **and notes**
 	* `prev_hash = entry_hash(previous_event)`
 * Export produces an envelope with entries ordered by sequence and can include:
-
 	* optional HMAC signature using a local key (env var or prompt)
 
 ### Why this matters
 
-* Detects silent edits inside SQLite (chain mismatch)
+* **DB-level enforcement**: even direct SQL access cannot modify or delete events
+* Detects silent edits (chain mismatch if triggers are bypassed externally)
+* Notes are included in the hash chain — changing a note breaks the chain
 * Provides reproducible evidence for audits and internal review
 
 ---
@@ -181,10 +209,16 @@ PGO uses an append-only event log design:
 
 Local runtime data and evidence are kept outside Git (e.g., `vault/`, `data/`, `reports/`, `exports/`). This keeps sensitive or generated artifacts from leaking into version control.
 
-## Security posture (short)
+## Security posture
 
-* Local-first by default; no background data exfiltration.
-* No credentials stored or auto-submitted (BYOS only).
+* **Local-first** by default; no background data exfiltration.
+* **No credentials** stored or auto-submitted (BYOS only).
+* **AES-256-GCM** (AEAD) vault encryption with **PBKDF2-HMAC-SHA256** key derivation (600,000 iterations, per-file random salt).
+* **HMAC-SHA256** PII tokenization (keyed — resistant to dictionary/rainbow attacks).
+* **Append-only DB triggers** prevent modification or deletion of audit events at the SQLite engine level.
+* **PII redaction processor** in structlog pipeline — personal data is scrubbed from all log output automatically.
+* **Directory hardening** — runtime directories (`vault/`, `data/`, `reports/`, `exports/`) created with `0o700` permissions (owner-only access).
+* **CI hardened**: GitHub Actions pinned by full commit SHA; SBOM (CycloneDX) generated on every push; dependency audit via `pip-audit`; secret scanning via Gitleaks.
 * Clear separation between code, local state, and generated outputs.
 
 ---

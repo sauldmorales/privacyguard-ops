@@ -21,10 +21,13 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+import structlog
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from pgo.core.paths import find_repo_root
+
+logger = structlog.get_logger()
 
 
 class Settings(BaseSettings):
@@ -98,10 +101,20 @@ class Settings(BaseSettings):
         return self.data_dir / self.db_filename
 
     def ensure_dirs(self) -> None:
-        """Create all local-state directories if they don't exist."""
+        """Create all local-state directories if they don't exist.
+
+        Applies ``0o700`` (owner-only) permissions as a defence-in-depth
+        measure.  Best-effort on non-POSIX systems.
+        """
+        import stat
+
         for d in (self.vault_dir, self.data_dir, self.reports_dir, self.exports_dir):
             assert d is not None  # guaranteed after validation
             d.mkdir(parents=True, exist_ok=True)
+            try:
+                d.chmod(stat.S_IRWXU)  # 0o700 — owner only
+            except OSError:
+                logger.warning("permission_hardening_failed", path=str(d))
 
 
 @lru_cache(maxsize=1)

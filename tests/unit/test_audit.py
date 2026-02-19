@@ -16,7 +16,6 @@ import pytest
 
 from pgo.core.audit import append, export_audit, verify_chain
 from pgo.core.db import open_db
-from pgo.core.errors import AuditChainBroken
 from pgo.core.repository import create_finding, transition_finding
 from pgo.core.models import FindingStatus
 from pgo.core.state import TransitionEvent
@@ -63,15 +62,21 @@ class TestAppend:
         row = conn.execute("SELECT prev_hash FROM events WHERE seq = 2").fetchone()
         assert row["prev_hash"] == h1
 
-    def test_notes_stored_but_not_hashed(self, conn: sqlite3.Connection) -> None:
-        """Two events differing only in notes should have different storage
-        but the notes field is NOT part of the hash input."""
-        event = _make_event()
-        append(conn, event, notes="first note")
-        # Cannot append same event twice to check hash (prev changes),
-        # but we verify note is stored.
+    def test_notes_included_in_hash(self, conn: sqlite3.Connection) -> None:
+        """Notes are now part of the hash chain — different notes
+        on identical events produce different hashes."""
+        event1 = _make_event(at_utc="2025-01-15T12:00:00")
+        h1 = append(conn, event1, notes="first note")
+
+        event2 = _make_event(at_utc="2025-01-15T13:00:00")
+        h2 = append(conn, event2, notes="second note")
+
+        # Both stored correctly.
         row = conn.execute("SELECT notes FROM events WHERE seq = 1").fetchone()
         assert row["notes"] == "first note"
+
+        # Hashes differ (different notes + different timestamps + chained).
+        assert h1 != h2
 
 
 # ── verify_chain ────────────────────────────────────────────
@@ -91,53 +96,42 @@ class TestVerifyChain:
         count = verify_chain(conn)
         assert count == 5
 
-    def test_tamper_entry_hash_detected(self, conn: sqlite3.Connection) -> None:
-        """Directly modifying entry_hash breaks the chain."""
+    def test_tamper_entry_hash_blocked_by_trigger(self, conn: sqlite3.Connection) -> None:
+        """The DB trigger prevents UPDATE on events — this IS the security control."""
         append(conn, _make_event(at_utc="2025-01-15T01:00:00"))
         append(conn, _make_event(at_utc="2025-01-15T02:00:00"))
 
-        # Tamper: overwrite the hash of event 1.
-        conn.execute("UPDATE events SET entry_hash = 'TAMPERED' WHERE seq = 1")
-        conn.commit()
+        # Attempt to tamper: the trigger must block this.
+        import sqlite3 as _sqlite3
+        with pytest.raises(_sqlite3.IntegrityError, match="append-only"):
+            conn.execute("UPDATE events SET entry_hash = 'TAMPERED' WHERE seq = 1")
 
-        with pytest.raises(AuditChainBroken):
-            verify_chain(conn)
-
-    def test_tamper_status_detected(self, conn: sqlite3.Connection) -> None:
-        """Changing a status field changes the canonical blob, breaking the hash."""
+    def test_tamper_status_blocked_by_trigger(self, conn: sqlite3.Connection) -> None:
+        """Changing a status field is blocked by the append-only trigger."""
         append(conn, _make_event(at_utc="2025-01-15T10:00:00"))
 
-        # Tamper: change the to_status in the DB row.
-        conn.execute("UPDATE events SET to_status = 'verified' WHERE seq = 1")
-        conn.commit()
+        import sqlite3 as _sqlite3
+        with pytest.raises(_sqlite3.IntegrityError, match="append-only"):
+            conn.execute("UPDATE events SET to_status = 'verified' WHERE seq = 1")
 
-        with pytest.raises(AuditChainBroken):
-            verify_chain(conn)
-
-    def test_tamper_prev_hash_detected(self, conn: sqlite3.Connection) -> None:
-        """Altering prev_hash directly breaks the chain linkage."""
+    def test_tamper_prev_hash_blocked_by_trigger(self, conn: sqlite3.Connection) -> None:
+        """Altering prev_hash is blocked by the append-only trigger."""
         append(conn, _make_event(at_utc="2025-01-15T01:00:00"))
         append(conn, _make_event(at_utc="2025-01-15T02:00:00"))
 
-        # Tamper the second event's prev_hash.
-        conn.execute("UPDATE events SET prev_hash = 'BAD' WHERE seq = 2")
-        conn.commit()
+        import sqlite3 as _sqlite3
+        with pytest.raises(_sqlite3.IntegrityError, match="append-only"):
+            conn.execute("UPDATE events SET prev_hash = 'BAD' WHERE seq = 2")
 
-        with pytest.raises(AuditChainBroken):
-            verify_chain(conn)
-
-    def test_deleted_event_detected(self, conn: sqlite3.Connection) -> None:
-        """Deleting an event breaks the chain because prev_hash won't match."""
+    def test_deleted_event_blocked_by_trigger(self, conn: sqlite3.Connection) -> None:
+        """Deleting an event is blocked by the append-only trigger."""
         append(conn, _make_event(at_utc="2025-01-15T01:00:00"))
         append(conn, _make_event(at_utc="2025-01-15T02:00:00"))
         append(conn, _make_event(at_utc="2025-01-15T03:00:00"))
 
-        # Delete the middle event.
-        conn.execute("DELETE FROM events WHERE seq = 2")
-        conn.commit()
-
-        with pytest.raises(AuditChainBroken):
-            verify_chain(conn)
+        import sqlite3 as _sqlite3
+        with pytest.raises(_sqlite3.IntegrityError, match="append-only"):
+            conn.execute("DELETE FROM events WHERE seq = 2")
 
 
 # ── export_audit ────────────────────────────────────────────
