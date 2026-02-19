@@ -26,9 +26,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
+      - name: Install dependencies (hash-verified)
         run: |
           python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock.txt
           pip install -e ".[dev]"
 
       - name: Lint (ruff)
@@ -64,11 +65,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
+      - name: Install pip-audit
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
           pip install pip-audit
 
       - name: pip-audit — check for known vulnerabilities
-        run: pip-audit --strict --desc
+        run: pip-audit --strict --desc -r requirements.lock.txt

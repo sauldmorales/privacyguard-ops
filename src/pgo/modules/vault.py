@@ -3,7 +3,7 @@
 Handles the evidence lifecycle:
 1. Redact (PII guard pass)
 2. Hash (SHA-256 for integrity)
-3. Encrypt (Fernet symmetric encryption with local key)
+3. Encrypt (AES-256-GCM authenticated encryption with derived key)
 4. Store with timestamp + integrity hash
 
 Non-goal: the vault does NOT auto-capture screenshots.
@@ -11,9 +11,18 @@ Users provide evidence files (BYOS), and the vault protects them.
 
 Security model:
 - Key is sourced ONLY from env var (PGO_VAULT_KEY) — never stored on disk
-- Files are encrypted at rest with Fernet (AES-128-CBC + HMAC)
+- Key derivation: PBKDF2-HMAC-SHA256 (600_000 iterations) with per-file random salt
+- Encryption: AES-256-GCM (AEAD — native authenticated encryption)
 - Integrity hash is computed BEFORE encryption (verifiable after decrypt)
 - File permissions are restricted (0o600) on write
+- Path anchoring: all vault paths are resolved and verified against vault root
+
+Cryptographic rationale (vs previous Fernet/AES-128-CBC):
+- AES-256-GCM provides native AEAD (no separate HMAC needed, smaller attack surface)
+- AES-256 meets FIPS 140-3 / Suite B requirements (Fernet's AES-128 does not)
+- PBKDF2 with high iteration count defends against brute-force on user passphrases
+  (previous implementation used single-pass SHA-256, which is NOT a KDF)
+- Per-file random salt prevents key reuse across evidence files
 """
 
 from __future__ import annotations
@@ -26,16 +35,27 @@ from pathlib import Path
 
 import structlog
 
-from pgo.core.errors import VaultKeyMissing, VaultWriteFailed
+from pgo.core.errors import VaultKeyMissing, VaultPathTraversal, VaultWriteFailed
 
 logger = structlog.get_logger()
 
 # Max evidence file size: 50 MB (defence-in-depth).
 _MAX_EVIDENCE_BYTES = 50 * 1024 * 1024
 
+# PBKDF2 parameters (NIST SP 800-132 / OWASP 2024 recommendation).
+_KDF_ITERATIONS = 600_000
+_SALT_BYTES = 16
+_KEY_BYTES = 32  # AES-256
 
-def _get_vault_key(env_var: str = "PGO_VAULT_KEY") -> bytes:
-    """Read the vault encryption key from environment.
+# AES-256-GCM nonce size (96 bits per NIST SP 800-38D recommendation).
+_NONCE_BYTES = 12
+
+# Wire format: salt (16) || nonce (12) || ciphertext+tag (variable).
+_HEADER_BYTES = _SALT_BYTES + _NONCE_BYTES
+
+
+def _get_vault_key_raw(env_var: str = "PGO_VAULT_KEY") -> str:
+    """Read the raw vault key string from environment.
 
     Raises
     ------
@@ -47,8 +67,108 @@ def _get_vault_key(env_var: str = "PGO_VAULT_KEY") -> bytes:
         raise VaultKeyMissing(
             f"Vault encryption key not found. Set {env_var} environment variable."
         )
-    # Derive a 32-byte key via SHA-256 (Fernet needs url-safe base64 of 32 bytes).
-    return hashlib.sha256(raw.encode("utf-8")).digest()
+    return raw
+
+
+def _derive_key(passphrase: str, salt: bytes) -> bytes:
+    """Derive a 256-bit AES key from a passphrase using PBKDF2-HMAC-SHA256.
+
+    Parameters
+    ----------
+    passphrase:
+        The raw key material from PGO_VAULT_KEY.
+    salt:
+        A random salt (16 bytes) unique to each encryption operation.
+
+    Returns
+    -------
+    bytes
+        32-byte derived key suitable for AES-256.
+    """
+    return hashlib.pbkdf2_hmac(
+        "sha256",
+        passphrase.encode("utf-8"),
+        salt,
+        iterations=_KDF_ITERATIONS,
+        dklen=_KEY_BYTES,
+    )
+
+
+def _encrypt_aes256gcm(data: bytes, passphrase: str) -> bytes:
+    """Encrypt data using AES-256-GCM with a PBKDF2-derived key.
+
+    Wire format: salt (16B) || nonce (12B) || ciphertext+tag (variable).
+
+    Returns
+    -------
+    bytes
+        The concatenated salt + nonce + ciphertext (includes GCM auth tag).
+    """
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+    salt = os.urandom(_SALT_BYTES)
+    nonce = os.urandom(_NONCE_BYTES)
+    key = _derive_key(passphrase, salt)
+    aesgcm = AESGCM(key)
+    ciphertext = aesgcm.encrypt(nonce, data, None)
+    return salt + nonce + ciphertext
+
+
+def _decrypt_aes256gcm(blob: bytes, passphrase: str) -> bytes:
+    """Decrypt an AES-256-GCM blob produced by ``_encrypt_aes256gcm``.
+
+    Raises
+    ------
+    Exception
+        If decryption fails (wrong key, corrupted data, tampered ciphertext).
+    """
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+    if len(blob) < _HEADER_BYTES + 16:  # 16 = minimum GCM tag
+        raise ValueError("Ciphertext too short to contain valid AES-256-GCM data")
+
+    salt = blob[:_SALT_BYTES]
+    nonce = blob[_SALT_BYTES : _SALT_BYTES + _NONCE_BYTES]
+    ciphertext = blob[_SALT_BYTES + _NONCE_BYTES :]
+
+    key = _derive_key(passphrase, salt)
+    aesgcm = AESGCM(key)
+    return aesgcm.decrypt(nonce, ciphertext, None)
+
+
+def _safe_vault_path(vault_dir: Path, *components: str) -> Path:
+    """Resolve a vault path and verify it stays inside the vault root.
+
+    This is the execution-point path traversal defence. Even if input
+    validation at the boundary is bypassed, this function ensures no
+    file operation escapes the vault directory.
+
+    Parameters
+    ----------
+    vault_dir:
+        The resolved vault root directory.
+    components:
+        Path components (finding_id, filename) to join.
+
+    Returns
+    -------
+    Path
+        The resolved, verified target path.
+
+    Raises
+    ------
+    VaultPathTraversal
+        If the resolved path escapes the vault root.
+    """
+    vault_root = vault_dir.resolve()
+    target = vault_root.joinpath(*components).resolve()
+
+    if not target.is_relative_to(vault_root):
+        raise VaultPathTraversal(
+            component="/".join(components),
+            vault_root=str(vault_root),
+        )
+    return target
 
 
 def compute_integrity_hash(data: bytes) -> str:
@@ -102,15 +222,10 @@ def store_evidence(
     # Compute integrity hash BEFORE encryption.
     integrity_hash = compute_integrity_hash(data)
 
-    # Encrypt.
+    # Encrypt with AES-256-GCM (AEAD) + PBKDF2-derived key.
     try:
-        from cryptography.fernet import Fernet
-        import base64
-
-        key_bytes = _get_vault_key(env_var)
-        fernet_key = base64.urlsafe_b64encode(key_bytes)
-        fernet = Fernet(fernet_key)
-        encrypted = fernet.encrypt(data)
+        passphrase = _get_vault_key_raw(env_var)
+        encrypted = _encrypt_aes256gcm(data, passphrase)
     except VaultKeyMissing:
         raise
     except ImportError:
@@ -120,11 +235,11 @@ def store_evidence(
     except Exception as exc:
         raise VaultWriteFailed(f"Encryption failed: {exc}") from exc
 
-    # Write to disk with restricted permissions.
-    finding_dir = vault_dir / finding_id
+    # Path anchoring: resolve + verify target stays inside vault root.
+    finding_dir = _safe_vault_path(vault_dir, finding_id)
     finding_dir.mkdir(parents=True, exist_ok=True)
 
-    target = finding_dir / filename
+    target = _safe_vault_path(vault_dir, finding_id, filename)
     try:
         target.write_bytes(encrypted)
         # Restrict file permissions: owner read/write only.
@@ -193,20 +308,16 @@ def retrieve_evidence(
     VaultWriteFailed
         If decryption or integrity check fails.
     """
-    target = vault_dir / finding_id / filename
+    # Path anchoring: resolve + verify target stays inside vault root.
+    target = _safe_vault_path(vault_dir, finding_id, filename)
     if not target.exists():
         raise FileNotFoundError(f"Evidence not found: {target}")
 
     encrypted = target.read_bytes()
 
     try:
-        from cryptography.fernet import Fernet
-        import base64
-
-        key_bytes = _get_vault_key(env_var)
-        fernet_key = base64.urlsafe_b64encode(key_bytes)
-        fernet = Fernet(fernet_key)
-        data = fernet.decrypt(encrypted)
+        passphrase = _get_vault_key_raw(env_var)
+        data = _decrypt_aes256gcm(encrypted, passphrase)
     except VaultKeyMissing:
         raise
     except ImportError:

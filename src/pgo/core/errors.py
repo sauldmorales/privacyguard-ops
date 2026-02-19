@@ -61,3 +61,14 @@ class VaultWriteFailed(PGOError):
 
 class VaultKeyMissing(PGOError):
     """Encryption key is not configured or not accessible."""
+
+
+class VaultPathTraversal(PGOError):
+    """A path component attempted to escape the vault root."""
+
+    def __init__(self, component: str, vault_root: str) -> None:
+        super().__init__(
+            f"Path traversal blocked: {component!r} resolves outside vault root {vault_root!r}"
+        )
+        self.component = component
+        self.vault_root = vault_root
