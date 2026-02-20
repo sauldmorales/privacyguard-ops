@@ -27,6 +27,7 @@ Cryptographic rationale (vs previous Fernet/AES-128-CBC):
 Atomic write strategy (CWE-362 defence):
 - Evidence is written to a temporary file in the same directory as the target.
 - After write + fsync, ``os.replace()`` atomically renames temp → target.
+- Directory is fsync'd after rename for full durability (ext4/Linux power-loss).
 - On crash/interrupt the target is either the old file or absent — never corrupt.
 
 Design constraint — evidence size limit (CWE-400 / OOM defence):
@@ -280,6 +281,19 @@ def store_evidence(
         # Atomic rename (POSIX guarantees for same-filesystem rename).
         os.replace(tmp_path, str(target))
         tmp_path = None  # Rename succeeded; nothing to clean up.
+
+        # Fsync the *directory* to ensure the rename is durable on
+        # Linux/ext4.  Without this, a power loss after os.replace()
+        # could leave the directory entry pointing at the old inode.
+        # Best-effort: non-fatal if it fails (e.g. Windows / exotic FS).
+        try:
+            dir_fd = os.open(str(finding_dir), os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+        except OSError:
+            pass
     except OSError as exc:
         raise VaultWriteFailed(f"Failed to write evidence: {exc}") from exc
     finally:
