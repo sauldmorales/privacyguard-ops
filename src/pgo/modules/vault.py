@@ -23,6 +23,19 @@ Cryptographic rationale (vs previous Fernet/AES-128-CBC):
 - PBKDF2 with high iteration count defends against brute-force on user passphrases
   (previous implementation used single-pass SHA-256, which is NOT a KDF)
 - Per-file random salt prevents key reuse across evidence files
+
+Atomic write strategy (CWE-362 defence):
+- Evidence is written to a temporary file in the same directory as the target.
+- After write + fsync, ``os.replace()`` atomically renames temp → target.
+- On crash/interrupt the target is either the old file or absent — never corrupt.
+
+Design constraint — evidence size limit (CWE-400 / OOM defence):
+- ``store_evidence()`` rejects inputs larger than ``_MAX_EVIDENCE_BYTES`` (50 MB).
+- This is an *operational* guardrail, not a streaming architecture.
+- The AES-256-GCM one-shot API (``AESGCM.encrypt()``) requires the full plaintext
+  in memory; streaming GCM would require the low-level ``Cipher()`` API.
+- If the product requires evidence files > 50 MB, migrate to v3 wire format with
+  incremental ``Cipher(AES, GCM).encryptor().update(chunk)`` streaming.
 """
 
 from __future__ import annotations
@@ -30,6 +43,7 @@ from __future__ import annotations
 import hashlib
 import os
 import stat
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -240,12 +254,47 @@ def store_evidence(
     finding_dir.mkdir(parents=True, exist_ok=True)
 
     target = _safe_vault_path(vault_dir, finding_id, filename)
+
+    # --- Atomic write: temp → fsync → os.replace (CWE-362 defence) ---
+    # Writing to a temp file in the SAME directory guarantees os.replace()
+    # is an atomic rename on the same filesystem.  If the process dies
+    # mid-write, the target file is either the old version or absent —
+    # never a half-written corrupt blob.
+    fd = None
+    tmp_path: str | None = None
     try:
-        target.write_bytes(encrypted)
-        # Restrict file permissions: owner read/write only.
-        target.chmod(stat.S_IRUSR | stat.S_IWUSR)
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(finding_dir),
+            prefix=".evidence_",
+            suffix=".tmp",
+        )
+        os.write(fd, encrypted)
+        os.fsync(fd)
+        os.close(fd)
+        fd = None  # Prevent double-close in the except/finally block.
+
+        # Set restrictive permissions BEFORE the atomic rename so the
+        # file is never visible with default-open permissions.
+        os.chmod(tmp_path, stat.S_IRUSR | stat.S_IWUSR)
+
+        # Atomic rename (POSIX guarantees for same-filesystem rename).
+        os.replace(tmp_path, str(target))
+        tmp_path = None  # Rename succeeded; nothing to clean up.
     except OSError as exc:
         raise VaultWriteFailed(f"Failed to write evidence: {exc}") from exc
+    finally:
+        # Defensive cleanup: close fd if still open, remove temp if rename
+        # did not happen (e.g. permission error after write).
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        if tmp_path is not None:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
     # Also restrict the directory.
     try:

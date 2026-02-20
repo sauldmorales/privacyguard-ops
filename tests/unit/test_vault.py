@@ -10,12 +10,14 @@ Zero Trust tests:
 7. AES-256-GCM produces authenticated ciphertext (not Fernet).
 8. PBKDF2 key derivation: same passphrase + different salt = different key.
 9. Path traversal: finding_id with ".." is blocked at execution point.
+10. Atomic write: no temp files left behind; crash-safe rename.
 """
 
 from __future__ import annotations
 
 import stat
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -203,3 +205,46 @@ class TestPathTraversal:
     def test_retrieve_rejects_traversal_finding_id(self, vault_dir: Path) -> None:
         with pytest.raises(VaultPathTraversal):
             retrieve_evidence(vault_dir, "../../../etc/passwd")
+
+
+# ── Atomic write tests ─────────────────────────────────────
+class TestAtomicWrite:
+    """Verify the write-temp-fsync-replace pattern (CWE-362 defence)."""
+
+    def test_no_temp_files_after_success(self, vault_dir: Path) -> None:
+        """After a successful store, no .tmp artifacts remain."""
+        store_evidence(vault_dir, "f-atomic", b"evidence data")
+        finding_dir = vault_dir / "f-atomic"
+        tmp_files = list(finding_dir.glob(".evidence_*.tmp"))
+        assert tmp_files == [], f"Temp files left behind: {tmp_files}"
+
+    def test_overwrite_is_atomic(self, vault_dir: Path) -> None:
+        """Writing the same finding_id twice replaces atomically."""
+        store_evidence(vault_dir, "f-ow", b"version-1")
+        store_evidence(vault_dir, "f-ow", b"version-2")
+        recovered = retrieve_evidence(vault_dir, "f-ow")
+        assert recovered == b"version-2"
+        # No temp files left.
+        tmp_files = list((vault_dir / "f-ow").glob(".evidence_*.tmp"))
+        assert tmp_files == []
+
+    def test_failed_write_leaves_no_temp(self, vault_dir: Path) -> None:
+        """If os.replace fails, the temp file is cleaned up."""
+        with patch("pgo.modules.vault.os.replace", side_effect=OSError("mock fail")):
+            with pytest.raises(VaultWriteFailed, match="Failed to write"):
+                store_evidence(vault_dir, "f-fail", b"data")
+
+        # Temp file must have been cleaned up.
+        finding_dir = vault_dir / "f-fail"
+        if finding_dir.exists():
+            tmp_files = list(finding_dir.glob(".evidence_*.tmp"))
+            assert tmp_files == [], f"Temp files left behind after failure: {tmp_files}"
+
+    def test_target_untouched_on_write_failure(self, vault_dir: Path) -> None:
+        """If a second write fails, the original file survives intact."""
+        store_evidence(vault_dir, "f-survive", b"original")
+        with patch("pgo.modules.vault.os.replace", side_effect=OSError("mock fail")):
+            with pytest.raises(VaultWriteFailed):
+                store_evidence(vault_dir, "f-survive", b"should-not-land")
+        recovered = retrieve_evidence(vault_dir, "f-survive")
+        assert recovered == b"original"

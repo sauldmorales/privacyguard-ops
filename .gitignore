@@ -1,6 +1,10 @@
 # =========================================================
 # 🛡️ PRIVACYGUARD-OPS (PGO) — Enterprise Python / Zero-Trust
 # =========================================================
+# Security policy: NEVER commit real evidence, PII, secrets,
+# session/browser state, or database files.  Only synthetic
+# examples and schemas belong in version control.
+# =========================================================
 
 # -------------------------
 # Python bytecode / caches
@@ -8,6 +12,9 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyo
+*.pyd
+*.so
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -20,6 +27,7 @@ htmlcov/
 .tox/
 .nox/
 .hypothesis/
+.cache/
 
 # -------------------------
 # Virtual environments
@@ -31,6 +39,8 @@ env/
 .Python
 .direnv/
 .envrc
+.penv/
+.python-version
 
 # -------------------------
 # Packaging / build
@@ -41,6 +51,7 @@ dist/
 .eggs/
 *.egg
 *.whl
+pip-wheel-metadata/
 
 # -------------------------
 # IDE / OS noise
@@ -65,14 +76,25 @@ Thumbs.db
 *.key
 *.pem
 *.pfx
+*.p12
 *.crt
 *.cer
+*.der
 *.ppk
+*.jks
+*.kdbx
+*.ovpn
 .netrc
 
 id_rsa
 id_ed25519
 authorized_keys
+
+secrets/
+secret/
+keys/
+credentials/
+creds/
 
 # Cloud creds (common paths/files)
 .aws/
@@ -96,17 +118,24 @@ gcloud-service-key.json
 *.db-journal
 *.db-wal
 *.db-shm
+*.pickle
+*.pkl
 dump.rdb
 appendonly.aof
 pgdata/
 *.pgpass
+*.bak
+*.dump
 
 # -------------------------
-# Logs
+# Logs (often contain PII)
 # -------------------------
 *.log
 logs/
+log/
 *.log.*
+tmp/
+temp/
 
 # -------------------------
 # PGO local-first artifacts (keep folders, ignore contents)
@@ -119,9 +148,11 @@ data/*
 
 reports/*
 !reports/.gitkeep
+!reports/README.md
 
 exports/*
 !exports/.gitkeep
+!exports/README.md
 
 sample_data/*
 !sample_data/.gitkeep
@@ -129,17 +160,19 @@ sample_data/*
 # If you ever add evidence/ as a separate folder:
 evidence/*
 !evidence/.gitkeep
+!evidence/README.md
 *.enc
 
 # -------------------------
 # 🧾 Manifests (safe-by-construction)
 # -------------------------
-# Rule: Only commit templates; never commit real operational manifests.
+# Rule: Only commit templates/schemas; never commit real operational manifests.
 manifests/*
 !manifests/.gitkeep
 !manifests/*.example.yaml
 !manifests/*.example.yml
 !manifests/brokers_manifest.yaml
+!manifests/README.md
 
 # Explicitly ignore local/real manifests (what you actually run)
 manifests/*.local.yaml
@@ -159,6 +192,67 @@ manifests/**/*.key
 # -------------------------
 scripts/*.out
 scripts/*.tmp
+
+# -------------------------
+# 🌐 Browser / automation artifacts (high PII risk)
+# -------------------------
+*.har
+*.hars
+*.pcap
+*.pcapng
+*.mitm
+*.trace
+
+# Session / cookies storage (Playwright/Selenium/etc.)
+storage_state.json
+storageState.json
+cookies.json
+session.json
+sessions/
+profile/
+profiles/
+user-data-dir/
+chrome-profile/
+chromium-profile/
+
+# Captured web artifacts
+*.mhtml
+*.jsonl
+*.ndjson
+
+# -------------------------
+# Binary / media evidence (never commit real captures)
+# -------------------------
+screenshots/
+captures/
+downloads/
+artifacts/
+
+# Common evidence file types — block by extension
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.bmp
+*.tiff
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.csv
+*.tsv
+*.zip
+*.7z
+*.tar
+*.gz
+*.rar
+
+# Allow specific committed docs (override above)
+!docs/**/*.png
+!docs/**/*.jpg
+!docs/**/*.pdf
 
 # -------------------------
 # Docker / IaC (optional but safe)
@@ -181,11 +275,11 @@ safety-report.json
 # Local scratch
 # -------------------------
 .local/
-tmp/
-temp/
-*.tmp
-*.temp
 .scratch/
+notes/
+personal/
+private/
+*.md.private
 
 # -------------------------
 # Pre-commit / secret scanning
@@ -206,5 +300,7 @@ temp/
 *.bak
 *.orig
 *.save
+*.tmp
+*.temp
 *~
 \#*\#
